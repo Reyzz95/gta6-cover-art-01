@@ -10,12 +10,13 @@ const CoverArt = (() => {
   };
 
   function geometry(layout, width, height) {
-    const unit = Math.min(width, height);
-    const margin = unit * .032, gap = unit * .012;
-    const fieldWidth = width - 2 * margin + gap;
-    const fieldHeight = height - margin - unit * .115 + gap;
+    const base = Math.min(width, height);
+    const edge = base * .032;
+    const gap = base * .012;
+    const fieldWidth = width - 2 * edge + gap;
+    const fieldHeight = height - edge - base * .115 + gap;
     return layouts[layout].map(([x, y, w, h]) => ({
-      x: margin + x * fieldWidth, y: margin + y * fieldHeight,
+      x: edge + x * fieldWidth, y: edge + y * fieldHeight,
       w: w * fieldWidth - gap, h: h * fieldHeight - gap,
     }));
   }
@@ -27,9 +28,11 @@ const CoverArt = (() => {
   }
 
   function gradient(ctx, x, y, dx, dy, stops) {
-    const fill = ctx.createLinearGradient(x, y, x + dx, y + dy);
-    for (const [at, tint] of stops) fill.addColorStop(at, tint);
-    return fill;
+    const ramp = ctx.createLinearGradient(x, y, x + dx, y + dy);
+    for (const [position, color] of stops) {
+      ramp.addColorStop(position, color);
+    }
+    return ramp;
   }
 
   function drawSun(ctx, x, y, radius) {
@@ -46,14 +49,14 @@ const CoverArt = (() => {
     ctx.fillStyle = gradient(ctx, x, y - radius, 0, radius * 2, [
       [0, '#fff4b1'], [.48, '#ffb56d'], [1, '#fa6590'],
     ]);
-    const line = radius / 10;
+    const stripeHeight = radius / 10;
     for (let row = 0; row < 20; row++) {
-      ctx.fillRect(x - radius, y - radius + row * line, radius * 2, line * (1 - Math.max(0, row - 8) * .056));
+      ctx.fillRect(x - radius, y - radius + row * stripeHeight, radius * 2, stripeHeight * (1 - Math.max(0, row - 8) * .056));
     }
     ctx.restore();
   }
 
-  function drawSky(ctx, panel, index, ornamental = true) {
+  const drawSky = (ctx, panel, index, ornamental = true) => {
     const { x, y, w, h } = panel;
     ctx.fillStyle = gradient(ctx, x, y, w * .15, h, [
       [0, '#33254e'], [.37, '#b8447c'], [.66, '#f39080'], [.68, '#642f67'], [1, '#211a3a'],
@@ -63,15 +66,15 @@ const CoverArt = (() => {
     if (!ornamental) return;
     ctx.fillStyle = '#39203c';
     for (let i = 0; i < 22; i++) {
-      const height = h * (.035 + ((i * 43 + index * 13) % 27) / 240);
-      ctx.fillRect(x + i * w / 22, y + h * .67 - height, w / 24, height);
+      const towerHeight = h * (.035 + ((i * 43 + index * 13) % 27) / 240);
+      ctx.fillRect(x + i * w / 22, y + h * .67 - towerHeight, w / 24, towerHeight);
     }
     for (let i = 1; i < 16; i++) {
       const length = w * (.08 + ((i * 13) % 23) / 100);
       ctx.fillStyle = i % 2 ? '#ffafac48' : '#f477a744';
       ctx.fillRect(x + w * .52 - length / 2, y + h * (.67 + i * i / 780), length, h * .004);
     }
-  }
+  };
 
   function paintPanel(ctx, panel, photo, crop, index) {
     const { x, y, w, h } = panel;
@@ -82,9 +85,9 @@ const CoverArt = (() => {
     if (!photo) {
       drawSky(ctx, panel, index);
     } else {
-      const bounds = photoBounds(panel, photo, crop);
+      const imageRect = photoBounds(panel, photo, crop);
       ctx.filter = 'contrast(1.22) saturate(1.3) brightness(1.06)';
-      ctx.drawImage(photo, bounds.x, bounds.y, bounds.w, bounds.h);
+      ctx.drawImage(photo, imageRect.x, imageRect.y, imageRect.w, imageRect.h);
       ctx.filter = 'none';
       ctx.globalCompositeOperation = 'soft-light';
       ctx.fillStyle = gradient(ctx, x, y, w * .28, h, [
@@ -93,11 +96,11 @@ const CoverArt = (() => {
       ctx.fillRect(x, y, w, h);
       ctx.globalCompositeOperation = 'source-over';
     }
-    const vignette = ctx.createRadialGradient(x + w * .5, y + h * .46, Math.min(w, h) * .15,
+    const shading = ctx.createRadialGradient(x + w * .5, y + h * .46, Math.min(w, h) * .15,
       x + w * .5, y + h * .46, Math.hypot(w, h) * .55);
-    vignette.addColorStop(0, '#1b0b2900');
-    vignette.addColorStop(1, '#180923a8');
-    ctx.fillStyle = vignette;
+    shading.addColorStop(0, '#1b0b2900');
+    shading.addColorStop(1, '#180923a8');
+    ctx.fillStyle = shading;
     ctx.fillRect(x, y, w, h);
     ctx.restore();
     ctx.strokeStyle = '#ffe1b986';
@@ -105,20 +108,9 @@ const CoverArt = (() => {
     ctx.strokeRect(x, y, w, h);
   }
 
-  const grain = document.createElement('canvas');
-  grain.width = grain.height = 192;
-  const grainContext = grain.getContext('2d');
-  const pixels = grainContext.createImageData(grain.width, grain.height);
-  let seed = 123456;
-  for (let offset = 0; offset < pixels.data.length; offset += 4) {
-    seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
-    pixels.data.fill(seed & 256 ? 255 : 0, offset, offset + 3);
-    pixels.data[offset + 3] = seed >>> 28;
-  }
-  grainContext.putImageData(pixels, 0, 0);
-
   function drawCaption(ctx, width, height, title, tagline) {
-    const unit = Math.min(width, height), middle = width / 2;
+    const unit = Math.min(width, height);
+    const middle = width / 2;
     const bottom = height - unit * .094;
     ctx.fillStyle = gradient(ctx, 0, height * .49, 0, height * .51, [
       [0, '#1b0c2800'], [.56, '#1b0c2890'], [.9, '#1b1026fa'], [1, '#1b1026'],
@@ -146,9 +138,9 @@ const CoverArt = (() => {
     const longest = Math.max(...rows.map(line => ctx.measureText(line).width));
     if (longest > available) size *= available / longest;
     ctx.font = '900 ' + size + 'px ' + displayFont;
-    const first = bottom - unit * .06 - (rows.length - 1) * size * .84;
+    const firstBaseline = bottom - unit * .06 - (rows.length - 1) * size * .84;
     rows.forEach((line, index) => {
-      const baseline = first + index * size * .84;
+      const baseline = firstBaseline + index * size * .84;
       ctx.strokeStyle = '#100b1c';
       ctx.lineWidth = unit * .019;
       ctx.strokeText(line, middle + unit * .008, baseline + unit * .012);
@@ -177,14 +169,18 @@ const CoverArt = (() => {
 
   function draw(canvas, state) {
     const [width, height] = formats[state.format];
-    if (canvas.width !== width) canvas.width = width;
-    if (canvas.height !== height) canvas.height = height;
+    if (canvas.width !== width) {
+      canvas.width = width;
+    }
+    if (canvas.height !== height) {
+      canvas.height = height;
+    }
     const ctx = canvas.getContext('2d');
     const unit = Math.min(width, height);
     ctx.fillStyle = '#1b1026';
     ctx.fillRect(0, 0, width, height);
-    const panels = geometry(state.layout, width, height);
-    panels.forEach((panel, index) => {
+    const panelRects = geometry(state.layout, width, height);
+    panelRects.forEach((panel, index) => {
       const crop = state.crops[index];
       paintPanel(ctx, panel, state.photos[crop.photo]?.image, crop, index);
     });
@@ -195,8 +191,20 @@ const CoverArt = (() => {
     ctx.strokeStyle = '#f5a697';
     ctx.lineWidth = Math.max(2, unit * .002);
     ctx.strokeRect(border, border, width - 2 * border, height - 2 * border);
-    return panels;
+    return panelRects;
   }
+
+  const grain = document.createElement('canvas');
+  grain.width = grain.height = 192;
+  const textureContext = grain.getContext('2d');
+  const texturePixels = textureContext.createImageData(grain.width, grain.height);
+  let textureSeed = 123456;
+  for (let offset = 0; offset < texturePixels.data.length; offset += 4) {
+    textureSeed = (Math.imul(textureSeed, 1664525) + 1013904223) >>> 0;
+    texturePixels.data.fill(textureSeed & 256 ? 255 : 0, offset, offset + 3);
+    texturePixels.data[offset + 3] = textureSeed >>> 28;
+  }
+  textureContext.putImageData(texturePixels, 0, 0);
 
   return { clamp, draw, formats, layouts, photoBounds };
 })();

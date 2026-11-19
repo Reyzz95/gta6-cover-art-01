@@ -11,99 +11,87 @@ const state = {
   title: byId('title').value, tagline: byId('tagline').value,
 };
 
-let active = 0, panels = [], selectionVisible = false, queuedFrame = 0, drag;
-const currentCrop = () => state.crops[active];
-const status = message => { byId('status').textContent = message; };
-const option = (text, value) => new Option(text, value);
+let active = 0, panels = [], selectionVisible = false, pendingFrame = 0, drag;
+function currentCrop() {
+  return state.crops[active];
+}
+function status(message) {
+  byId('status').textContent = message;
+}
+function option(text, value) {
+  return new Option(text, value);
+}
 
 function sizePreview() {
   const [width, height] = formats[state.format];
-  const scale = Math.min(stage.clientWidth / width, stage.clientHeight / height);
-  artwork.style.width = width * scale + 'px';
-  artwork.style.height = height * scale + 'px';
+  const previewScale = Math.min(stage.clientWidth / width, stage.clientHeight / height);
+  artwork.style.width = width * previewScale + 'px';
+  artwork.style.height = height * previewScale + 'px';
 }
 
 function paint() {
-  cancelAnimationFrame(queuedFrame);
-  queuedFrame = 0;
+  cancelAnimationFrame(pendingFrame);
+  pendingFrame = 0;
   panels = draw(canvas, state);
-  const outline = byId('selection');
-  outline.hidden = !selectionVisible;
+  const selection = byId('selection');
+  selection.hidden = !selectionVisible;
   const rect = panels[active];
-  outline.style.left = rect.x / canvas.width * 100 + '%';
-  outline.style.top = rect.y / canvas.height * 100 + '%';
-  outline.style.width = rect.w / canvas.width * 100 + '%';
-  outline.style.height = rect.h / canvas.height * 100 + '%';
+  selection.style.left = rect.x / canvas.width * 100 + '%';
+  selection.style.top = rect.y / canvas.height * 100 + '%';
+  selection.style.width = rect.w / canvas.width * 100 + '%';
+  selection.style.height = rect.h / canvas.height * 100 + '%';
 }
 
 function queuePaint() {
-  if (!queuedFrame) queuedFrame = requestAnimationFrame(paint);
+  if (pendingFrame) return;
+  pendingFrame = requestAnimationFrame(paint);
 }
 
 function syncCrop() {
-  const crop = currentCrop();
-  byId('assignment').value = crop.photo;
-  byId('zoom').disabled = byId('reset').disabled = crop.photo < 0;
-  byId('zoom').value = crop.zoom;
-  byId('zoom-value').textContent = Math.round(crop.zoom * 100) + '%';
+  const selectedCrop = currentCrop();
+  byId('assignment').value = selectedCrop.photo;
+  byId('zoom').disabled = byId('reset').disabled = selectedCrop.photo < 0;
+  byId('zoom').value = selectedCrop.zoom;
+  byId('zoom-value').textContent = Math.round(selectedCrop.zoom * 100) + '%';
   for (const button of byId('panels').children) {
     button.setAttribute('aria-pressed', Number(button.dataset.panel) === active);
   }
   for (const button of byId('photos').children) {
-    button.setAttribute('aria-pressed', Number(button.dataset.photo) === crop.photo);
+    button.setAttribute('aria-pressed', Number(button.dataset.photo) === selectedCrop.photo);
   }
 }
 
-function choosePanel(index) {
+const choosePanel = index => {
   active = index;
   selectionVisible = true;
   syncCrop();
   queuePaint();
-}
+};
 
 function assign(index) {
-  if (currentCrop().photo !== index) state.crops[active] = freshCrop(index);
+  if (currentCrop().photo !== index) {
+    state.crops[active] = freshCrop(index);
+  }
   choosePanel(active);
 }
 
 function syncPhotos() {
-  const library = byId('photos');
-  const select = byId('assignment');
-  library.replaceChildren();
-  select.replaceChildren(option('Illustrated sunset', -1));
+  const photoList = byId('photos');
+  const assignment = byId('assignment');
+  photoList.replaceChildren();
+  assignment.replaceChildren(option('Illustrated sunset', -1));
   state.photos.forEach(({ image, name }, index) => {
     const button = document.createElement('button');
-    const thumb = image.cloneNode();
-    thumb.alt = '';
-    button.append(thumb);
+    const thumbnail = image.cloneNode();
+    thumbnail.alt = '';
+    button.append(thumbnail);
     button.dataset.photo = index;
     button.title = button.ariaLabel = 'Assign ' + name + ' to selected panel';
     button.addEventListener('click', () => assign(index));
-    library.append(button);
-    select.add(option(name, index));
+    photoList.append(button);
+    assignment.add(option(name, index));
   });
   syncCrop();
-}
-
-function setLayout(layout) {
-  state.layout = layout;
-  state.crops = layouts[layout].map((_, index) =>
-    state.crops[index] ?? freshCrop(state.photos.length ? index % state.photos.length : -1));
-  active = Math.min(active, state.crops.length - 1);
-  const controls = byId('panels');
-  controls.replaceChildren();
-  state.crops.forEach((_, index) => {
-    const button = document.createElement('button');
-    button.dataset.panel = index;
-    button.textContent = 'Panel ' + (index + 1);
-    button.addEventListener('click', () => choosePanel(index));
-    controls.append(button);
-  });
-  for (const button of byId('layouts').children) {
-    button.setAttribute('aria-pressed', button.dataset.layout === layout);
-  }
-  syncCrop();
-  paint();
 }
 
 function setFormat(format) {
@@ -114,52 +102,73 @@ function setFormat(format) {
   paint();
 }
 
-async function decode(url, name) {
-  const image = new Image();
-  image.src = url;
-  await image.decode();
-  return { image, name };
+function setLayout(layout) {
+  state.layout = layout;
+  state.crops = layouts[layout].map((_, index) =>
+    state.crops[index] ?? freshCrop(state.photos.length ? index % state.photos.length : -1));
+  active = Math.min(active, state.crops.length - 1);
+  const panelControls = byId('panels');
+  panelControls.replaceChildren();
+  state.crops.forEach((_, index) => {
+    const button = document.createElement('button');
+    button.dataset.panel = index;
+    button.textContent = 'Panel ' + (index + 1);
+    button.addEventListener('click', () => choosePanel(index));
+    panelControls.append(button);
+  });
+  for (const button of byId('layouts').children) {
+    button.setAttribute('aria-pressed', button.dataset.layout === layout);
+  }
+  syncCrop();
+  paint();
 }
 
-let sampleDataScript;
+async function decode(url, name) {
+  const decodedImage = new Image();
+  decodedImage.src = url;
+  await decodedImage.decode();
+  return { image: decodedImage, name };
+}
+
+let sampleDataPromise;
 function loadSampleData() {
-  return sampleDataScript ??= new Promise((resolve, reject) => {
-    const script = document.createElement('script');
-    script.src = './samples/sample-data.min.js';
-    script.onload = () => resolve(globalThis.AfterglowSamples);
-    script.onerror = () => {
-      sampleDataScript = undefined;
-      script.remove();
+  return sampleDataPromise ??= new Promise((resolve, reject) => {
+    const sampleScript = document.createElement('script');
+    sampleScript.src = './samples/sample-data.min.js';
+    sampleScript.onload = () => resolve(globalThis.AfterglowSamples);
+    sampleScript.onerror = () => {
+      sampleDataPromise = undefined;
+      sampleScript.remove();
       reject(new Error('Could not load sample data'));
     };
-    document.head.append(script);
+    document.head.append(sampleScript);
   });
 }
 
 async function addSamples(names = sampleNames) {
   // File URLs can display nearby images but can taint an export canvas.
-  const embedded = location.protocol === 'file:' ? await loadSampleData() : null;
-  const samples = await Promise.all(names.map(name => decode(embedded?.[name] ?? './samples/' + name + '.jpg',
+  const embeddedSamples = location.protocol === 'file:' ? await loadSampleData() : null;
+  const samples = await Promise.all(names.map(name => decode(embeddedSamples?.[name] ?? './samples/' + name + '.jpg',
     name === 'pier' ? 'Pier' : 'Boulevard')));
-  const first = state.photos.length;
+  const firstPhoto = state.photos.length;
   state.photos.push(...samples);
-  state.crops = state.crops.map((_, index) => freshCrop(first + index % samples.length));
+  state.crops = state.crops.map((_, index) => freshCrop(firstPhoto + index % samples.length));
   syncPhotos();
   paint();
 }
 
 async function addFiles(files) {
   if (!files.length) return;
-  const results = await Promise.allSettled(files.map(async file => {
-    const url = URL.createObjectURL(file);
+  const fileResults = await Promise.allSettled(files.map(async file => {
+    const objectUrl = URL.createObjectURL(file);
     try {
-      return await decode(url, file.name);
+      return await decode(objectUrl, file.name);
     } catch (error) {
-      URL.revokeObjectURL(url);
+      URL.revokeObjectURL(objectUrl);
       throw error;
     }
   }));
-  const loaded = results.filter(result => result.status === 'fulfilled').map(result => result.value);
+  const loaded = fileResults.filter(result => result.status === 'fulfilled').map(result => result.value);
   if (!loaded.length) {
     status('No images could be opened.');
     return;
@@ -177,32 +186,32 @@ async function addFiles(files) {
 }
 
 function point(event) {
-  const rect = canvas.getBoundingClientRect();
+  const canvasRect = canvas.getBoundingClientRect();
   return {
-    x: (event.clientX - rect.left) / rect.width * canvas.width,
-    y: (event.clientY - rect.top) / rect.height * canvas.height,
+    x: (event.clientX - canvasRect.left) / canvasRect.width * canvas.width,
+    y: (event.clientY - canvasRect.top) / canvasRect.height * canvas.height,
   };
 }
 
-function hit({ x, y }) {
+const hit = ({ x, y }) => {
   return panels.findIndex(panel =>
     x >= panel.x && x <= panel.x + panel.w && y >= panel.y && y <= panel.y + panel.h);
-}
+};
 
 function zoomTo(value, anchor) {
   const crop = currentCrop();
   const photo = state.photos[crop.photo]?.image;
   if (!photo) return;
   const panel = panels[active];
-  const before = photoBounds(panel, photo, crop);
+  const previousBounds = photoBounds(panel, photo, crop);
   crop.zoom = clamp(value, 1, 4);
-  const after = photoBounds(panel, photo, crop);
+  const nextBounds = photoBounds(panel, photo, crop);
   const center = anchor ?? { x: panel.x + panel.w / 2, y: panel.y + panel.h / 2 };
-  if (after.w > panel.w) {
-    crop.x = clamp((center.x - (center.x - before.x) / before.w * after.w - panel.x) / (panel.w - after.w));
+  if (nextBounds.w > panel.w) {
+    crop.x = clamp((center.x - (center.x - previousBounds.x) / previousBounds.w * nextBounds.w - panel.x) / (panel.w - nextBounds.w));
   }
-  if (after.h > panel.h) {
-    crop.y = clamp((center.y - (center.y - before.y) / before.h * after.h - panel.y) / (panel.h - after.h));
+  if (nextBounds.h > panel.h) {
+    crop.y = clamp((center.y - (center.y - previousBounds.y) / previousBounds.h * nextBounds.h - panel.y) / (panel.h - nextBounds.h));
   }
   syncCrop();
   queuePaint();
@@ -228,14 +237,20 @@ canvas.addEventListener('pointerdown', event => {
 });
 canvas.addEventListener('pointermove', event => {
   if (drag?.pointer !== event.pointerId) return;
-  const cursor = point(event);
+  const pointerPosition = point(event);
   const overflowX = drag.bounds.w - drag.panel.w;
   const overflowY = drag.bounds.h - drag.panel.h;
-  if (overflowX > 0) drag.crop.x = clamp(drag.x - (cursor.x - drag.cursor.x) / overflowX);
-  if (overflowY > 0) drag.crop.y = clamp(drag.y - (cursor.y - drag.cursor.y) / overflowY);
+  if (overflowX > 0) {
+    drag.crop.x = clamp(drag.x - (pointerPosition.x - drag.cursor.x) / overflowX);
+  }
+  if (overflowY > 0) {
+    drag.crop.y = clamp(drag.y - (pointerPosition.y - drag.cursor.y) / overflowY);
+  }
   queuePaint();
 });
-canvas.addEventListener('lostpointercapture', () => { drag = null; });
+canvas.addEventListener('lostpointercapture', () => {
+  drag = null;
+});
 canvas.addEventListener('wheel', event => {
   const cursor = point(event);
   const index = hit(cursor);
@@ -270,14 +285,14 @@ byId('files').addEventListener('change', event => {
   event.target.value = '';
 });
 byId('demo').addEventListener('click', async () => {
-  const button = byId('demo');
-  button.disabled = true;
+  const demoButton = byId('demo');
+  demoButton.disabled = true;
   try {
     await addSamples();
     status('Sample photos loaded');
   } catch {
     status('Sample photos could not be opened.');
-    button.disabled = false;
+    demoButton.disabled = false;
   }
 });
 window.addEventListener('dragover', event => {
@@ -296,17 +311,17 @@ window.addEventListener('drop', event => {
 
 byId('export').addEventListener('click', () => {
   paint();
-  const filename = 'afterglow-' + canvas.width + 'x' + canvas.height + '.png';
+  const exportName = 'afterglow-' + canvas.width + 'x' + canvas.height + '.png';
   canvas.toBlob(blob => {
     if (!blob) {
       status('The cover could not be exported.');
       return;
     }
     const url = URL.createObjectURL(blob);
-    const download = document.createElement('a');
-    download.href = url;
-    download.download = filename;
-    download.click();
+    const downloadLink = document.createElement('a');
+    downloadLink.href = url;
+    downloadLink.download = exportName;
+    downloadLink.click();
     setTimeout(() => URL.revokeObjectURL(url), 60000);
     status('PNG downloaded');
   }, 'image/png');
@@ -317,7 +332,9 @@ async function start() {
   document.body.classList.toggle('shot-cover', Boolean(shot?.coverOnly));
   if (shot) {
     for (const field of ['title', 'tagline']) {
-      if (shot[field] !== null) state[field] = byId(field).value = shot[field].slice(0, byId(field).maxLength);
+      if (shot[field] !== null) {
+        state[field] = byId(field).value = shot[field].slice(0, byId(field).maxLength);
+      }
     }
   }
   setLayout(Object.hasOwn(layouts, shot?.layout) ? shot.layout : 'hero');
@@ -337,6 +354,8 @@ async function start() {
     }
   }
   paint();
-  requestAnimationFrame(() => requestAnimationFrame(() => { window.__shotReady = true; }));
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    window.__shotReady = true;
+  }));
 }
 start();
