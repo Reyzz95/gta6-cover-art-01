@@ -1,0 +1,5 @@
+[
+  { "name": "1-cover.png", "query": "?shot=cover&format=landscape&layout=hero&photo=boulevard&caption=Sunset%20Syndicate&sky=2", "w": 1280, "h": 720 },
+  { "name": "2-editor.jpg", "query": "?shot=editor&format=portrait&layout=hero&photo=boulevard&caption=Sunset%20Syndicate&sky=2", "w": 1280, "h": 900 },
+  { "name": "3-cover.png", "query": "?shot=cover&format=portrait&layout=triptych&photo=pier&caption=Neon%20Getaway&tagline=LAST%20LIGHT%20ON%20THE%20COAST&sky=1", "w": 720, "h": 900 }
+]

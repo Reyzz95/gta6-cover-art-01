@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Afterglow — Cover Studio</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="./style.css">
+<script defer src="./src/cover.js"></script>
+<script defer src="./src/shots.js"></script>
+<script defer src="./src/main.js"></script>
+</head>
+<body>
+<header class="top">
+  <div class="brand"><span class="mark" aria-hidden="true"></span> AFTERGLOW <small>COVER STUDIO</small></div>
+  <span class="local"><i></i> On-device studio</span>
+  <button id="export" class="primary">Download PNG <span aria-hidden="true">↓</span></button>
+</header>
+<main class="studio">
+  <aside class="sidebar">
+    <section>
+      <h2>Photos <button id="demo" class="quiet">Use samples</button></h2>
+      <button id="drop" class="drop"><b>＋ Add photos</b><small>or drop images here</small></button>
+      <input id="files" type="file" accept="image/*" multiple hidden>
+      <div id="photos" class="photos" aria-label="Photo library"></div>
+    </section>
+    <section>
+      <h2>Composition</h2>
+      <div class="choices" id="layouts" aria-label="Layout">
+        <button data-layout="hero"><i class="hero"></i>Hero</button>
+        <button data-layout="grid"><i class="grid"></i>Grid</button>
+        <button data-layout="triptych"><i class="triptych"></i>Triptych</button>
+      </div>
+      <label for="format">Canvas size</label>
+      <select id="format">
+        <option value="square">Square · 1080 × 1080</option>
+        <option value="portrait">Portrait · 1080 × 1350</option>
+        <option value="landscape">Wide · 1920 × 1080</option>
+      </select>
+    </section>
+    <section>
+      <h2>Caption</h2>
+      <label for="title">Main title</label>
+      <input id="title" maxlength="56" value="Sunset Syndicate">
+      <label for="tagline">Tagline</label>
+      <input id="tagline" maxlength="72" value="THE CITY COMES ALIVE AFTER DARK">
+    </section>
+    <section>
+      <h2>Panel crop <button id="reset" class="quiet">Reset</button></h2>
+      <div id="panels" class="choices" aria-label="Selected panel"></div>
+      <label for="assignment">Panel image</label><select id="assignment"></select>
+      <label for="zoom" class="zoom-label">Zoom <output id="zoom-value">100%</output></label>
+      <input id="zoom" type="range" min="1" max="4" step="0.01" value="1">
+    </section>
+  </aside>
+  <section class="preview" aria-label="Live preview">
+    <div class="preview-top"><strong>LIVE PREVIEW</strong><span id="dimensions"></span></div>
+    <div class="stage"><div class="artwork"><canvas id="cover" aria-label="Cover art preview"></canvas><div id="selection" hidden></div></div></div>
+    <div class="preview-bottom"><span>Drag to pan · Scroll to zoom</span><span id="status" role="status"></span></div>
+  </section>
+</main>
+</body>
+</html>
